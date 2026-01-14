@@ -1,3 +1,35 @@
+"""
+SpotiPy-MultiObs: Statistical Visualization Module
+==================================================
+
+Description:
+    This module implements the graphical rendering layer for the analysis suite, focusing on
+    the statistical visualization of Center-to-Limb Variation (CLV) profiles.
+
+    It transforms the raw extracted data into "Candle" (box-and-whisker) plots, which
+    provide a clear representation of the statistical dispersion of solar observables
+    as a function of viewing angle ($\mu$).
+
+    Key Scientific Capabilities:
+    1.  **Statistical Binning:** Aggregates high-volume pixel data into $\mu$-bins to
+        visualize the mean trend and variance (standard deviation) simultaneously.
+    2.  **Trend Quantifiction:** Overlays polynomial regression fits to quantify the
+        mean limb-darkening or center-to-limb behavior for each feature class.
+    3.  **Hemispheric Segmentation:** Automatically splits data into East ($x < 0$) and
+        West ($x > 0$) hemispheres to investigate potential asymmetries (e.g., rotational
+        Doppler shifts or trailing/leading polarity differences).
+    4.  **Vector Magnitude Analysis:** For vector quantities like Magnetic Field ($M$) and
+        Doppler Velocity ($V$), the module generates parallel visualizations for both
+        signed (raw) values and absolute magnitudes ($|B|$, $|v|$).
+
+Usage:
+    This module is automatically invoked by `run_analysis.py` after data extraction.
+    It can also be run standalone to regenerate plots from existing text files.
+
+Author: Muhammad Saqib Sumra
+Date:   2026
+"""
+
 import os
 import numpy as np
 import matplotlib
@@ -9,11 +41,16 @@ import matplotlib.pyplot as plt
 # ----------------------------------------------------------------------
 
 OBSERVABLES = ['Ic', 'M', 'V', 'Ld', 'Lw']
+
+# Observables that should be plotted as both Raw and Absolute values
+# (e.g., Magnetograms M and Dopplergrams V are vector/signed quantities)
 DUAL_MODE_OBS = ['M', 'V']
 
 POLY_ORDER_AIA = 2
 POLY_ORDER_HMI = 2
 MIN_MU_FOR_FIT = 0.15
+
+# Bin Edges for the Candle plots (Mu from 0.1 to 1.0)
 MU_EDGES = np.linspace(0.1, 1.0 + 1e-6, 9)
 
 # ----------------------------------------------------------------------
@@ -21,12 +58,17 @@ MU_EDGES = np.linspace(0.1, 1.0 + 1e-6, 9)
 # ----------------------------------------------------------------------
 
 def pick_existing_dir(candidates):
+    """Returns the first existing directory from a list of candidates."""
     for c in candidates:
         if os.path.isdir(c):
             return c
     return None
 
 def load_data_4col(txt_path):
+    """
+    Loads Mu, I, X, Y data from text files.
+    Format: [Mu, Intensity, X_arcsec, Y_arcsec]
+    """
     if not os.path.exists(txt_path):
         return None, None, None, None
     try:
@@ -34,9 +76,8 @@ def load_data_4col(txt_path):
         if data.ndim == 1:
             data = data.reshape(1, -1)
 
-        # Backward compatibility for old 2-col files
+        # Backward compatibility for old 2-col files (no spatial data)
         if data.shape[1] < 4:
-            # print(f"[WARN] File {os.path.basename(txt_path)} has old format (2 cols). Spatial split impossible.")
             return data[:,0], data[:,1], np.zeros_like(data[:,0]), np.zeros_like(data[:,0])
 
         mu = data[:, 0]
@@ -51,6 +92,10 @@ def load_data_4col(txt_path):
         return None, None, None, None
 
 def filter_spatial(mu, I, x, region_code):
+    """
+    Filters data based on solar hemisphere.
+    East: X < 0, West: X > 0.
+    """
     if mu is None: return None, None
     if region_code == 'East':
         mask = (x < 0)
@@ -61,6 +106,7 @@ def filter_spatial(mu, I, x, region_code):
     return mu[mask], I[mask]
 
 def bin_stats(mu, I, mu_edges):
+    """Calculates Mean and Count for each Mu bin."""
     mu = np.asarray(mu); I = np.asarray(I)
     centers = 0.5 * (mu_edges[:-1] + mu_edges[1:])
     means   = np.zeros_like(centers)
@@ -78,6 +124,7 @@ def bin_stats(mu, I, mu_edges):
     return centers, means, counts
 
 def compute_candle_binning(mu, I, mu_edges):
+    """Groups data arrays into bins for the boxplot function."""
     mu = np.asarray(mu); I = np.asarray(I)
     centers = 0.5 * (mu_edges[:-1] + mu_edges[1:])
     per_bin = []
@@ -87,6 +134,7 @@ def compute_candle_binning(mu, I, mu_edges):
     return centers, per_bin
 
 def fit_from_candles(mu_centers, means, min_mu, max_order):
+    """Fits a polynomial to the binned means."""
     mask = np.isfinite(mu_centers) & np.isfinite(means) & (mu_centers >= min_mu)
     x = mu_centers[mask]
     y = means[mask]
@@ -106,6 +154,7 @@ def fit_from_candles(mu_centers, means, min_mu, max_order):
 # ----------------------------------------------------------------------
 
 def plot_component(component, out_path, obs, mode_label):
+    """Plots a single component (e.g. Umbra) with candles and fit."""
     name, mu, I, color, order = component["name"], component["mu"], component["I"], component["color"], component["order"]
     if mu is None or len(mu) < 5: return
 
@@ -115,7 +164,7 @@ def plot_component(component, out_path, obs, mode_label):
 
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.scatter(mu, I, s=3, alpha=0.15, color="gray", zorder=1)
-
+    
     bp = ax.boxplot(bin_lists, positions=centers_candles, widths=0.05,
                     patch_artist=True, showfliers=False, showmeans=True, meanline=True, manage_ticks=False)
 
@@ -141,6 +190,7 @@ def plot_component(component, out_path, obs, mode_label):
     plt.close(fig)
 
 def plot_combined(components, out_norm, out_raw, obs, mode_label):
+    """Plots all components on a single graph (Normalized and Raw)."""
     xs = np.linspace(MIN_MU_FOR_FIT, 1.0, 400)
     fig_n, ax_n = plt.subplots(figsize=(7,5))
     fig_r, ax_r = plt.subplots(figsize=(7,5))
@@ -173,12 +223,13 @@ def plot_combined(components, out_norm, out_raw, obs, mode_label):
     plt.close(fig_r)
 
 # ----------------------------------------------------------------------
-# 4. Main Driver (Adapted for Package)
+# 4. Main Driver
 # ----------------------------------------------------------------------
 
 def generate_plots(root_dir, obs_list=None):
     """
-    Main entry point called by run_analysis.py.
+    Entry point for visualization.
+    Iterates through all Observables -> Modes -> Regions.
     """
     print(f"[INFO] Plotting Root: {root_dir}")
 
@@ -212,6 +263,8 @@ def generate_plots(root_dir, obs_list=None):
         mu_Pl, I_Pl, x_Pl, _ = load_data_4col(os.path.join(aia_obs_dir, "lbd_Plage_raw.txt"))
         mu_N, I_N, x_N, _ = load_data_4col(os.path.join(aia_obs_dir, "lbd_Network_raw.txt"))
 
+        # Determine Analysis Modes: "Raw" is always processed.
+        # "Abs" (Absolute Value) is added for vector quantities like M and V.
         modes = ["Raw"]
         if obs in DUAL_MODE_OBS:
             modes.append("Abs")
@@ -219,26 +272,30 @@ def generate_plots(root_dir, obs_list=None):
         for mode in modes:
             print(f"   >> Mode: {mode}")
 
+            # Helper to convert data based on mode
             def get_data(mu_in, I_in, x_in):
                 if mu_in is None: return None, None, None
                 I_out = np.abs(I_in) if mode == "Abs" else I_in.copy()
                 return mu_in, I_out, x_in
 
+            # Iterate Spatial Regions
             for region in ["Full", "East", "West"]:
                 out_dir = os.path.join(root_dir, "Post_CLV_candles", obs, mode, region)
                 os.makedirs(out_dir, exist_ok=True)
 
                 comps_to_plot = []
 
+                # Define Solar Components
                 raw_comps = [
                     ("Quiet Sun", mu_Q, I_Q, x_Q, "black", POLY_ORDER_AIA),
                     ("Plage",     mu_Pl, I_Pl, x_Pl, "red",   POLY_ORDER_AIA),
                     ("Network",   mu_N, I_N, x_N, "orange", POLY_ORDER_AIA),
                     ("Spot",      mu_F, I_F, x_F, "cyan",   POLY_ORDER_HMI),
-                    ("Umbra",     mu_U, I_U, x_U, "magenta", 2),
+                    ("Umbra",     mu_U, I_U, x_U, "magenta", 2), # Lower order for Umbra due to sparsity
                     ("Penumbra",  mu_P, I_P, x_P, "green",  POLY_ORDER_HMI)
                 ]
 
+                # Process Components
                 for name, m, i, x, col, order in raw_comps:
                     m_mode, i_mode, x_mode = get_data(m, i, x)
                     m_final, i_final = filter_spatial(m_mode, i_mode, x_mode, region)
@@ -252,6 +309,7 @@ def generate_plots(root_dir, obs_list=None):
                         fname = f"{name.replace(' ', '')}.png"
                         plot_component(comp_dict, os.path.join(out_dir, fname), obs, f"{mode}-{region}")
 
+                # Generate Combined Summary
                 if comps_to_plot:
                     plot_combined(comps_to_plot,
                                   os.path.join(out_dir, "Combined_Norm.png"),
@@ -260,6 +318,5 @@ def generate_plots(root_dir, obs_list=None):
 
     print("\n[DONE] All plots generated.")
 
-# For testing this file independently
 if __name__ == "__main__":
     generate_plots(os.getcwd())
