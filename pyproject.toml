@@ -7,7 +7,7 @@ name = "spotipy"
 version = "0.1.0"
 description = "Multi-observable solar CLV analysis tool extending SpotiPy"
 authors = [
-  { name="Muhammad Saqib Sumra", email="saqib.sumra.5@gmail.com" },
+  { name="Muhammad Saqib Sumra (2026)", email="saqib.sumra.5@gmail.com" },
   { name="Emily Joe Loessnitz (2024)", email="emily.loessnitz@uni-potsdam.de" }
 ]
 readme = "README.md"
