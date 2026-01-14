@@ -51,8 +51,3 @@ The framework is executed via the `run_analysis.py` interface. It supports **4 d
 Best for first-time runs. The script guides you step-by-step with Yes/No prompts for every stage (Download, Alignment, Extraction, etc.).
 ```bash
 python3 run_analysis.py --config params.txt
-
-### 2. Automated Batch Mode
-Run the pipeline without user intervention. Useful for processing specific observables overnight or on a cluster.
-```bash
-python3 run_analysis.py --config params.txt --observables M V --auto
