@@ -21,7 +21,7 @@ This framework automatically downloads, aligns, and extracts data for **5 solar 
 1.  **Clone the repository:**
     ```bash
     git clone [https://github.com/saqibsumra/SpotiPy_MultiObs.git](https://github.com/saqibsumra/SpotiPy_MultiObs.git)
-    cd SpotiPy_MultiObs
+    cd SpotiPy
     ```
 
 2.  **Install dependencies:**
