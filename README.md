@@ -51,3 +51,42 @@ The framework is executed via the `run_analysis.py` interface. It supports **4 d
 Best for first-time runs. The script guides you step-by-step with Yes/No prompts for every stage (Download, Alignment, Extraction, etc.).
 ```bash
 python3 run_analysis.py --config params.txt
+```
+### 2. Automated Batch Mode
+Run the pipeline without user intervention. Useful for processing specific observables overnight or on a cluster.
+
+```bash
+python3 run_analysis.py --config params.txt --observables M V --auto
+```
+
+### 3. Plot-Only Mode
+Skip all data processing and strictly regenerate the visualization plots from existing results. Useful for tweaking figures for publication.
+
+```bash
+python3 run_analysis.py --config params.txt --plot-only
+```
+### 4. Manual Override
+Test a specific date or Active Region without editing the configuration file.
+
+```bash
+python3 run_analysis.py --config params.txt --noaa 12673 --days 1
+```
+
+## 📂 Output Structure
+
+The framework organizes results into a structured directory tree:
+
+| Folder | Description |
+| :--- | :--- |
+| `FITS_files_.../` | Raw downloaded data (separated by instrument and observable). |
+| `masks_.../` | Generated segmentation masks (FITS format) and PNG overlays. |
+| `Results_.../` | Extracted numerical data (text files containing $\mu, I, x, y$). |
+| `Post_CLV_candles/` | Final publication-quality "Candle" plots (PNG). |
+
+## 📜 Citation
+
+needs to be added 
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
