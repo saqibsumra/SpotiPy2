@@ -30,4 +30,4 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/username/SpotiPy_MultiObs"
+"Homepage" = "https://github.com/saqibsumra/SpotiPy"
