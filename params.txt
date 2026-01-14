@@ -1,0 +1,24 @@
+# SpotiPy Configuration File
+# Comments start with #
+
+# --- Run Parameters ---
+NOAA_NUMBER = 12218
+START_DATE  = "yyyy-mm-ddT24:00:00"
+DAYS        = --
+CADENCE     = -
+EMAIL       = "your.email@institute.edu"
+
+# --- Physics / Geometry ---
+X_START_ARCSEC = --
+Y_START_ARCSEC = --
+FRAME_SIZE     = ---
+
+# --- Segmentation Thresholds ---
+# Format: (min, max)
+UMBRA_RANGE    = (--, --)
+PENUMBRA_RANGE = (--, --)
+
+# Percentage thresholds
+QUIET_SUN_TOL_PCT = --
+PLAGE_EXCESS_PCT  = --
+MIN_PLAGE_AREA    = --

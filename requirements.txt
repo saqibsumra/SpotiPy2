@@ -1,0 +1,9 @@
+numpy
+matplotlib
+astropy
+sunpy
+reproject
+opencv-python
+scipy
+drms
+zeep
