@@ -81,7 +81,7 @@ The framework organizes results into a structured directory tree:
 | `FITS_files_.../` | Raw downloaded data (separated by instrument and observable). |
 | `masks_.../` | Generated segmentation masks (FITS format) and PNG overlays. |
 | `Results_.../` | Extracted numerical data (text files containing $\mu, I, x, y$). |
-| `Post_CLV_candles/` | Final publication-quality "Candle" plots (PNG). |
+| `Post_CLV_candles/` | Final "Candle" plots (PNG). |
 
 ## 📜 Citation
 
