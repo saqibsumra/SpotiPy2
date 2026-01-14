@@ -1,4 +1,4 @@
-# SpotiPy-MultiObs
+# SpotiPy
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -18,8 +18,8 @@ This tool automatically downloads, aligns, and extracts data for **5 solar obser
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/SpotiPy_MultiObs.git](https://github.com/USERNAME/SpotiPy_MultiObs.git)
-    cd SpotiPy_MultiObs
+    git clone [https://github.com/saqibsumra/SpotiPy.git](https://github.com/saqibsumra/SpotiPy.git)
+    cd SpotiPy
     ```
 
 2.  **Install dependencies:**
