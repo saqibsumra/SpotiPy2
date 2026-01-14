@@ -1,5 +1,5 @@
 """
-SpotiPy-MultiObs: Data Reduction & Analysis Module
+SpotiPy: Data Reduction & Analysis Module
 ==================================================
 
 Description:
