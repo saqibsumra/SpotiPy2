@@ -1,4 +1,4 @@
-# SpotiPy-MultiObs: Solar Active Region Analysis Framework
+# SpotiPy: Solar Active Region Analysis Framework
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -51,3 +51,8 @@ The framework is executed via the `run_analysis.py` interface. It supports **4 d
 Best for first-time runs. The script guides you step-by-step with Yes/No prompts for every stage (Download, Alignment, Extraction, etc.).
 ```bash
 python3 run_analysis.py --config params.txt
+
+### 2. Automated Batch Mode
+Run the pipeline without user intervention. Useful for processing specific observables overnight or on a cluster.
+```bash
+python3 run_analysis.py --config params.txt --observables M V --auto
