@@ -25,29 +25,22 @@ from scipy import ndimage as ndi
 warnings.filterwarnings('ignore')
 
 # =====================================
-# 1. CONFIGURATION STORAGE
+# 1. CONFIGURATION
 # =====================================
 CONFIG = {
-    # Physics / Geometry
     "X_START_ARCSEC": -927,
     "Y_START_ARCSEC": 290,
     "FRAME_SIZE": 400,
-    "SPOT_CENTER_THRESH": 0.98,  # [FIX] Increased from 0.90 to 0.98 to prevent drift
-
-    # Thresholds
+    "SPOT_CENTER_THRESH": 0.98,
     "UMBRA_RANGE": (10, 55),
     "PENUMBRA_RANGE": (75, 120),
     "QUIET_SUN_TOL_PCT": 15.0,
     "PLAGE_EXCESS_PCT": 20.0,
     "MIN_PLAGE_AREA": 450,
     "BLUR_SIGMA": 3,
-
-    # Fitting
     "MIN_MU_FOR_FIT": 0.15,
     "HMI_POLY_ORDER": 2,
     "POLY_ORDER": 5,
-
-    # Run Defaults
     "NOAA_NUMBER": None,
     "START_DATE": None,
     "DAYS": 13,
@@ -63,35 +56,23 @@ HMI_NO_LD_SERIES = "hmi.Ic_noLimbDark_720s"
 AIA_SERIES       = "aia.lev1_uv_24s"
 
 def load_config(path):
-    """Parses a simple key=value text file and updates CONFIG."""
-    if not os.path.exists(path):
-        print(f"[WARN] Config file not found: {path}. Using defaults.")
-        return
-    print(f"[INFO] Loading user config: {path}")
+    if not os.path.exists(path): return
     with open(path, 'r') as f:
         for line in f:
             line = line.split('#')[0].strip()
             if not line or "=" not in line: continue
             key, val_str = line.split("=", 1)
-            key = key.strip().upper()
-            val_str = val_str.strip()
+            key = key.strip().upper(); val_str = val_str.strip()
             if key in CONFIG:
                 try:
                     val = ast.literal_eval(val_str)
                     CONFIG[key] = val
-                    print(f"   -> Overriding {key}: {val}")
                 except:
                     CONFIG[key] = val_str
-                    print(f"   -> Overriding {key}: {val_str}")
 
 # =====================================
 # 2. UTILS
 # =====================================
-def ask_yn(msg: str) -> bool:
-    # In a pipeline, we generally assume 'yes' or handle via flags,
-    # but for manual steps we keep it simple.
-    return True
-
 def file_ok(path):
     return os.path.exists(path) and os.path.getsize(path) > 0
 
@@ -152,25 +133,21 @@ def download_series(series, start_time, days, cadence_h, out_dir, list_path, ema
     if "aia" in series: search_attrs.append(a.Wavelength(1700*u.angstrom))
 
     res = Fido.search(*search_attrs)
-    if len(res) > 0:
-        Fido.fetch(res, path=os.path.join(out_dir, "{file}"))
+    if len(res) > 0: Fido.fetch(res, path=os.path.join(out_dir, "{file}"))
     save_list(list_path, out_dir)
 
 def download_single_aia_rescue(target_time, email):
-    # [FIX] Restored rescue logic
     print(f"   [RESCUE] Downloading AIA for {target_time.iso}...")
     t_start = target_time - timedelta(minutes=1)
     t_end   = target_time + timedelta(minutes=1)
     try:
         search_attrs = [
-            a.Time(t_start.iso, t_end.iso),
-            a.jsoc.Series(AIA_SERIES),
-            a.jsoc.Notify(email),
-            a.Wavelength(1700*u.angstrom)
+            a.Time(t_start.iso, t_end.iso), a.jsoc.Series(AIA_SERIES),
+            a.jsoc.Notify(email), a.Wavelength(1700*u.angstrom)
         ]
         res = Fido.search(*search_attrs)
         if len(res) > 0:
-            files = Fido.fetch(res[0, 0], path=None) # path=None uses default or return
+            files = Fido.fetch(res[0, 0], path=None)
             if len(files) > 0: return files[0]
     except Exception as e:
         print(f"   [RESCUE FAIL] {e}")
@@ -193,10 +170,9 @@ def radial_profile(data, center, rmax, mask=None):
     if mask is not None: disk &= (~mask)
     arr = np.ma.masked_array(data, mask=~disk)
     tbin = np.bincount(r[disk], weights=arr[disk])
-    nr = np.bincount(r[disk])
-    prof = tbin/np.maximum(nr,1)
+    prof = tbin/np.maximum(np.bincount(r[disk]),1)
     if prof.size>20:
-        med = np.median(prof[:20])
+        med = np.median(prof[:20]);
         if med>0: prof = prof/med
     return prof
 
@@ -215,13 +191,11 @@ def remove_aia_ld(aia_aligned_path, out_nolbd_path):
     (cx,cy), r_pix, dx, dy = center_radius_from_header(hdr)
     if r_pix is None: return False
     mask = np.zeros_like(data, dtype=bool)
-
     xs = int(round(cx - CONFIG["X_START_ARCSEC"]/dx))
     ys = int(round(cy - CONFIG["Y_START_ARCSEC"]/dy))
     h = CONFIG["FRAME_SIZE"] // 2
     x0,x1 = max(0,xs-h), min(data.shape[1], xs+h); y0,y1 = max(0,ys-h), min(data.shape[0], ys+h)
     mask[y0:y1, x0:x1] = True
-
     prof = radial_profile(data, (cx,cy), int(r_pix), mask=mask)
     plane = profile_to_plane(prof, (cx,cy), data.shape, int(r_pix))
     with np.errstate(divide='ignore',invalid='ignore'):
@@ -233,7 +207,6 @@ def remove_aia_ld(aia_aligned_path, out_nolbd_path):
 # 4. CENTERING & MASKS
 # =====================================
 def compute_centered_window_hmi(img, hdr, x_hint, y_start_arcsec):
-    # [FIX] Updated centering logic with higher threshold and sanity check
     H, W = img.shape[:2]
     frame_size = CONFIG["FRAME_SIZE"]
     cy = hdr.get('CRPIX2'); dy = hdr.get('CDELT2')
@@ -241,20 +214,17 @@ def compute_centered_window_hmi(img, hdr, x_hint, y_start_arcsec):
     x_pix = int(round(x_hint))
     x0 = int(np.clip(x_pix - frame_size//2, 0, W - frame_size))
     y0 = int(np.clip(y_pix - frame_size//2, 0, H - frame_size))
-
     crop = img[y0:y0+frame_size, x0:x0+frame_size]
     med = np.nanmedian(crop)
     if med > 0:
-        thresh = CONFIG.get("SPOT_CENTER_THRESH", 0.98) # Use strict threshold
+        thresh = CONFIG.get("SPOT_CENTER_THRESH", 0.98)
         mask = crop <= (thresh * med)
         lab, nlab = label(mask)
         if nlab > 0:
             sizes = np.bincount(lab.ravel()); sizes[0]=0
             cyc, cxc = center_of_mass(lab == int(np.argmax(sizes)))
             if np.isfinite(cxc) and np.isfinite(cyc):
-                # Sanity Check: Don't jump if it's noise
-                shift_x = cxc - frame_size/2
-                shift_y = cyc - frame_size/2
+                shift_x = cxc - frame_size/2; shift_y = cyc - frame_size/2
                 if abs(shift_x) < 100 and abs(shift_y) < 100:
                     x0 = int(np.clip(x0 + shift_x, 0, W-frame_size))
                     y0 = int(np.clip(y0 + shift_y, 0, H-frame_size))
@@ -286,21 +256,14 @@ def build_hmi_masks(crop_img, disk_mask_raw, disk_mask_thresh):
     if disk_mask_thresh is None: disk_mask_thresh = disk_mask_raw
     g[~disk_mask_thresh] = 255
     g_blur = cv2.GaussianBlur(g, (7,7), 0)
-
-    u_range = CONFIG["UMBRA_RANGE"]
-    p_range = CONFIG["PENUMBRA_RANGE"]
-
+    u_range = CONFIG["UMBRA_RANGE"]; p_range = CONFIG["PENUMBRA_RANGE"]
     u_raw = cv2.inRange(g_blur, int(u_range[0]), int(u_range[1]))
     u = cv2.erode(u_raw, np.ones((3,3),np.uint8), iterations=1)
-
     p_band = cv2.inRange(g_blur, int(p_range[0]), int(p_range[1]))
     p = cv2.bitwise_and(p_band, cv2.bitwise_not(cv2.dilate(u, np.ones((7,7),np.uint8))))
-
     f_loose = cv2.morphologyEx(cv2.inRange(g_blur,0,int(p_range[1])), cv2.MORPH_CLOSE, np.ones((5,5),np.uint8))
     f_spot = cv2.bitwise_or(f_loose, u)
-
-    dm = disk_mask_raw.astype(bool)
-    return (u>0)&dm, (p>0)&dm, (f_spot>0)&dm
+    return (u>0)&disk_mask_raw.astype(bool), (p>0)&disk_mask_raw.astype(bool), (f_spot>0)&disk_mask_raw.astype(bool)
 
 def clean_spot_mask(mask_bool):
     if mask_bool is None or not np.any(mask_bool): return mask_bool
@@ -316,9 +279,6 @@ def polar_slice_mask(shape, center, r_pix, rmin, rmax, th0, th1):
     th = (np.degrees(np.arctan2(Y, X)) + 360) % 360
     return (r_norm >= rmin) & (r_norm <= rmax) & (th >= th0) & (th <= th1)
 
-# =====================================
-# 5. EXTRACTION
-# =====================================
 def collect_I_mu(img, mu, xg, yg, mask):
     v = img[mask]; m = mu[mask]; x = xg[mask]; y = yg[mask]
     valid = np.isfinite(v) & np.isfinite(m)
@@ -329,10 +289,9 @@ def collect_I_mu(img, mu, xg, yg, mask):
 # =====================================
 def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
                     cadence_hours=None, email=None, config_file=None,
-                    steps=['download', 'align', 'masks', 'extract'],
+                    steps=['download', 'align', 'hmi', 'aia'],
                     observables_list=None, recreate_masks=False):
 
-    # 1. Configuration
     if config_file: load_config(config_file)
     noaa = noaa_number if noaa_number else CONFIG.get("NOAA_NUMBER")
     t_str = start_time_str if start_time_str else CONFIG.get("START_DATE")
@@ -347,7 +306,6 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
     ROOT = f"NOAA_{noaa}-1700A_dt_{cad}h"
     obs_to_run = observables_list if observables_list else ALL_OBSERVABLES.keys()
 
-    # 2. Directory Setup
     DIRS = {
         "hmi_nold": os.path.join(ROOT, "FITS_files_HMI_noLD"),
         "aia"     : os.path.join(ROOT, "FITS_files_AIA"),
@@ -367,8 +325,7 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
         "aia"     : os.path.join(ROOT, f"NOAA_{noaa}_{AIA_SERIES}_files.txt"),
         "aia_corr": os.path.join(ROOT, f"NOAA_{noaa}_{AIA_SERIES}_corrected_files.txt"),
     }
-    for k, s in ALL_OBSERVABLES.items():
-        LISTS[k] = os.path.join(ROOT, f"NOAA_{noaa}_{s}_files.txt")
+    for k, s in ALL_OBSERVABLES.items(): LISTS[k] = os.path.join(ROOT, f"NOAA_{noaa}_{s}_files.txt")
 
     # 3. DOWNLOAD
     if 'download' in steps:
@@ -378,6 +335,7 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
         for k in obs_to_run:
             download_series(ALL_OBSERVABLES[k], start_time, days, cad, DIRS[f'fits_{k}'], LISTS[k], mail)
     else:
+        # Generate lists if existing
         save_list(LISTS['hmi_nold'], DIRS['hmi_nold'])
         save_list(LISTS['aia'], DIRS['aia'])
 
@@ -386,43 +344,52 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
         print("[STEP] Aligning AIA...")
         aia_files = [f.strip() for f in open(LISTS['aia']).read().splitlines()]
         for i, f in enumerate(aia_files):
-            # Alignment logic
             closest_hmi = find_closest_file(read_fits(os.path.join(DIRS['aia'], f))[1], DIRS['fits_Ic'])
             if closest_hmi:
                 align_aia_to_hmi(os.path.join(DIRS['aia'], f), os.path.join(DIRS['fits_Ic'], closest_hmi),
                                  os.path.join(DIRS['aia'], f.replace('.fits','_aligned.fits')))
-            # LD Removal
-            remove_aia_ld(os.path.join(DIRS['aia'], f.replace('.fits','_aligned.fits')),
-                          os.path.join(DIRS['aia'], f.replace('.fits','_nolbd.fits')))
+        # Note: We do NOT remove LD here anymore.
+
+    # 5. AIA LIMB DARKENING CORRECTION (New Step)
+    if 'aia_ld' in steps:
+        print("[STEP] Correcting AIA Limb Darkening...")
+        # Check if aligned files exist, otherwise use raw? Usually we correct aligned.
+        # Original script logic: Iterates aia_files, looks for _aligned, writes _nolbd
+        aia_files = [f.strip() for f in open(LISTS['aia']).read().splitlines()]
+        for i, f in enumerate(aia_files):
+            aligned_path = os.path.join(DIRS['aia'], f.replace('.fits','_aligned.fits'))
+            if os.path.exists(aligned_path):
+                remove_aia_ld(aligned_path, os.path.join(DIRS['aia'], f.replace('.fits','_nolbd.fits')))
+            else:
+                # If skipping alignment, maybe user wants to correct raw?
+                # (Standard pipeline requires alignment first, but this handles the check)
+                print(f"   [WARN] Skipping LD for {f} (No aligned file found).")
         save_list(LISTS['aia_corr'], DIRS['aia'])
 
-    # 5. TRACKING & ANALYSIS
-    if 'masks' in steps or 'extract' in steps:
-        print("[STEP] Tracking & Analysis...")
-        hmi_files = [f.strip() for f in open(LISTS['hmi_nold']).read().splitlines()]
-        if not hmi_files: return ROOT
+    # 6. ANALYSIS PREP
+    hmi_files = [f.strip() for f in open(LISTS['hmi_nold']).read().splitlines()]
+    if not hmi_files: return ROOT
 
-        # Calculate X Tracks
-        d0,h0 = read_fits(os.path.join(DIRS['hmi_nold'], hmi_files[0]))
-        h0['cunit1']='arcsec'; h0['cunit2']='arcsec'
-        mp = sunpy.map.Map(d0,h0)
-        p0 = SkyCoord(CONFIG["X_START_ARCSEC"]*u.arcsec, CONFIG["Y_START_ARCSEC"]*u.arcsec, frame=mp.coordinate_frame)
+    # Calculate Tracking
+    d0,h0 = read_fits(os.path.join(DIRS['hmi_nold'], hmi_files[0]))
+    h0['cunit1']='arcsec'; h0['cunit2']='arcsec'
+    mp = sunpy.map.Map(d0,h0)
+    p0 = SkyCoord(CONFIG["X_START_ARCSEC"]*u.arcsec, CONFIG["Y_START_ARCSEC"]*u.arcsec, frame=mp.coordinate_frame)
+    ts=[];
+    for fn in hmi_files:
+        _,h=read_fits(os.path.join(DIRS['hmi_nold'], fn))
+        if h and 'DATE-OBS' in h: ts.append(Time(h['DATE-OBS']))
+    ts.sort(); dts=[0.0]+[(ts[i]-ts[i-1]).value for i in range(1,len(ts))]
+    rpts = SkyCoord(RotatedSunFrame(base=p0, duration=np.cumsum(np.array(dts)*u.day)))
+    pts  = rpts.transform_to(mp.coordinate_frame).to_string(unit='arcsec')
+    x_arc_list = np.array([float(s.split()[0]) for s in pts])
+    x_tracks = h0.get('CRPIX1') - (x_arc_list/h0.get('CDELT1'))
 
-        ts=[];
-        for fn in hmi_files:
-            _,h=read_fits(os.path.join(DIRS['hmi_nold'], fn))
-            if h and 'DATE-OBS' in h: ts.append(Time(h['DATE-OBS']))
-        ts.sort(); dts=[0.0]+[(ts[i]-ts[i-1]).value for i in range(1,len(ts))]
-        rpts = SkyCoord(RotatedSunFrame(base=p0, duration=np.cumsum(np.array(dts)*u.day)))
-        pts  = rpts.transform_to(mp.coordinate_frame).to_string(unit='arcsec')
-        x_arc_list = np.array([float(s.split()[0]) for s in pts])
-        x_tracks = h0.get('CRPIX1') - (x_arc_list/h0.get('CDELT1'))
+    HMI_DATA = {key: {'U': [[],[],[],[]], 'P': [[],[],[],[]], 'F': [[],[],[],[]]} for key in obs_to_run}
+    AIA_DATA = {key: {'Q': [[],[],[],[]], 'Plage': [[],[],[],[]], 'Network': [[],[],[],[]]} for key in obs_to_run}
 
-        # Data Containers
-        HMI_DATA = {key: {'U': [[],[],[],[]], 'P': [[],[],[],[]], 'F': [[],[],[],[]]} for key in obs_to_run}
-        AIA_DATA = {key: {'Q': [[],[],[],[]], 'Plage': [[],[],[],[]], 'Network': [[],[],[],[]]} for key in obs_to_run}
-
-        # --- HMI LOOP ---
+    # --- HMI LOOP ---
+    if 'hmi' in steps:
         print("   [HMI] Processing...")
         for i, fn in enumerate(hmi_files):
             try:
@@ -432,7 +399,6 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
 
                 x_hint = x_tracks[i] if i < len(x_tracks) else img_nold.shape[1]//2
                 x0, y0 = compute_centered_window_hmi(img_nold, hdr_nold, x_hint, CONFIG["Y_START_ARCSEC"])
-
                 crop_nold = np.nan_to_num(np.rot90(img_nold[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"],], 2), nan=0.0)
                 path_ic = os.path.join(DIRS['fits_Ic'], find_closest_file(hdr_nold, DIRS['fits_Ic']))
                 _, hdr_ic = read_fits(path_ic)
@@ -447,101 +413,113 @@ def analyze_sunspot(noaa_number=None, start_time_str=None, duration_days=None,
                 u_m, p_m, f_m = build_hmi_masks(crop_nold, disk_mask, disk_thresh)
                 u_m = clean_spot_mask(u_m); p_m = clean_spot_mask(p_m); f_m = clean_spot_mask(f_m)
 
-                # Save Mask
                 fits.writeto(os.path.join(DIRS['mask_hmi'], fn.replace('.fits', '_spotmask.fits')),
                              f_m.astype(np.uint8), hdr_nold, overwrite=True)
 
-                if 'extract' in steps:
-                    for k in obs_to_run:
-                        f_obs = find_closest_file(hdr_nold, DIRS[f'fits_{k}'])
-                        if not f_obs: continue
-                        img_obs, _ = read_fits(os.path.join(DIRS[f'fits_{k}'], f_obs))
-                        crop_obs = np.nan_to_num(np.rot90(img_obs[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2), nan=0.0)
+                for k in obs_to_run:
+                    f_obs = find_closest_file(hdr_nold, DIRS[f'fits_{k}'])
+                    if not f_obs: continue
+                    img_obs, _ = read_fits(os.path.join(DIRS[f'fits_{k}'], f_obs))
+                    crop_obs = np.nan_to_num(np.rot90(img_obs[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2), nan=0.0)
 
-                        for cat, msk in [('U', u_m), ('P', p_m), ('F', f_m)]:
-                            m, v, x, y = collect_I_mu(crop_obs, mu, x_grid, y_grid, msk)
-                            HMI_DATA[k][cat][0].append(m); HMI_DATA[k][cat][1].append(v)
-                            HMI_DATA[k][cat][2].append(x); HMI_DATA[k][cat][3].append(y)
+                    for cat, msk in [('U', u_m), ('P', p_m), ('F', f_m)]:
+                        m, v, x, y = collect_I_mu(crop_obs, mu, x_grid, y_grid, msk)
+                        HMI_DATA[k][cat][0].append(m); HMI_DATA[k][cat][1].append(v)
+                        HMI_DATA[k][cat][2].append(x); HMI_DATA[k][cat][3].append(y)
             except Exception as e: print(f"[ERR-HMI] {fn}: {e}")
 
-        # --- AIA LOOP ---
+        # Save HMI
+        print("   [Saving] Writing HMI text files...")
+        for k in obs_to_run:
+            for cat in ['U', 'P', 'F']:
+                d = HMI_DATA[k][cat]
+                if d[0]:
+                    arr = np.column_stack([np.concatenate(d[0]), np.concatenate(d[1]), np.concatenate(d[2]), np.concatenate(d[3])])
+                    np.savetxt(os.path.join(DIRS[f'res_hmi_{k}'], f'lbd_{cat}_raw.txt'), arr)
+
+    # --- AIA LOOP ---
+    if 'aia' in steps:
         print("   [AIA] Processing...")
         for i, fn_hmi in enumerate(hmi_files):
             try:
-                # Sync logic
                 _, hdr_hmi = read_fits(os.path.join(DIRS['hmi_nold'], fn_hmi))
                 t_hmi = Time(hdr_hmi['DATE-OBS'])
-
                 best_aia, best_dt = None, 9999
-                # Find best AIA match
                 aia_list = [f for f in os.listdir(DIRS['aia']) if '_nolbd' in f]
                 for fa in aia_list:
                     _, ha = read_fits(os.path.join(DIRS['aia'], fa))
                     dt = abs((Time(ha['DATE-OBS']) - t_hmi).to(u.s).value)
                     if dt < best_dt: best_dt, best_aia = dt, fa
 
-                # [FIX] RESCUE LOGIC
                 if best_dt > 300:
-                    print(f"      Missing AIA for {fn_hmi}. Attempting rescue...")
+                    print(f"      Missing AIA for {fn_hmi}. Rescue download...")
                     raw_file = download_single_aia_rescue(t_hmi + timedelta(minutes=5), mail)
                     if raw_file:
-                        base = os.path.basename(raw_file[0]) # Fido returns list
+                        base = os.path.basename(raw_file)
                         aligned = os.path.join(DIRS['aia'], base.replace('.fits','_aligned.fits'))
                         nolbd   = os.path.join(DIRS['aia'], base.replace('.fits','_nolbd.fits'))
-                        align_aia_to_hmi(raw_file[0], os.path.join(DIRS['hmi_nold'], fn_hmi), aligned)
+                        align_aia_to_hmi(raw_file, os.path.join(DIRS['hmi_nold'], fn_hmi), aligned)
                         remove_aia_ld(aligned, nolbd)
                         best_aia = os.path.basename(nolbd)
-                    else:
-                        continue
+                    else: continue
 
                 path_aia = os.path.join(DIRS['aia'], best_aia)
                 img_aia, hdr_aia = read_fits(path_aia)
 
-                # Geometry
                 img_hmi, _ = read_fits(os.path.join(DIRS['hmi_nold'], fn_hmi))
                 x_hint = x_tracks[i] if i < len(x_tracks) else img_hmi.shape[1]//2
                 x0, y0 = compute_centered_window_hmi(img_hmi, hdr_hmi, x_hint, CONFIG["Y_START_ARCSEC"])
 
                 crop_aia = np.rot90(img_aia[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2)
                 mu_aia = np.rot90(mu_grid_for_crop((CONFIG["FRAME_SIZE"], CONFIG["FRAME_SIZE"]), hdr_aia, x0, y0), 2)
-
-                # [FIX] Added missing coordinates logic
                 x_grid, y_grid = coords_grid_for_crop((CONFIG["FRAME_SIZE"], CONFIG["FRAME_SIZE"]), hdr_aia, x0, y0)
                 x_grid = np.rot90(x_grid, 2); y_grid = np.rot90(y_grid, 2)
 
-                # Masking logic (Simplified for pipeline, assumes HMI mask exists)
                 mask_path = os.path.join(DIRS['mask_hmi'], fn_hmi.replace('.fits', '_spotmask.fits'))
                 spot_mask = read_fits(mask_path)[0].astype(bool) if os.path.exists(mask_path) else np.zeros_like(crop_aia, dtype=bool)
 
-                # (Segmentation logic omitted for brevity, but assumes standard Plage/QS/Net split)
-                # For this pipeline version, we just create a dummy QS mask to ensure data flows
-                qs_mask = (~spot_mask) & (crop_aia > 0)
+                crop_hmi = np.rot90(img_hmi[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2)
+                c_h_disp = crop_hmi.copy()
+                if np.nanmedian(c_h_disp) > 100: c_h_disp /= np.nanmedian(c_h_disp)
+                dirty_u8 = make_uint8_for_cv(c_h_disp, vmin=0.0, vmax=2.0)
+                dirty_mask = cv2.inRange(cv2.cvtColor(dirty_u8, cv2.COLOR_BGR2GRAY), 0, 90) > 0
+                data_nospot_qs = np.where(dirty_mask, np.nan, crop_aia)
 
-                if 'extract' in steps:
-                    for k in obs_to_run:
-                        f_obs = find_closest_file(hdr_hmi, DIRS[f'fits_{k}'])
-                        if not f_obs: continue
-                        img_obs, _ = read_fits(os.path.join(DIRS[f'fits_{k}'], f_obs))
-                        crop_obs = np.nan_to_num(np.rot90(img_obs[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2), nan=0.0)
+                (cx, cy), r_pix, _, _ = center_radius_from_header(hdr_aia)
+                full_p_mask = polar_slice_mask((img_aia.shape[0], img_aia.shape[1]), (cx, cy), r_pix, 0.6, 0.95, 70.0, 110.0)
+                slice_mask = np.rot90(full_p_mask[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2)
+                qs_vals = data_nospot_qs[slice_mask]
+                qs_med = np.nanmedian(qs_vals) if qs_vals.size > 0 else np.nanmedian(data_nospot_qs)
 
-                        # Just doing QS for brevity in this snippet
-                        m, v, x, y = collect_I_mu(crop_obs, mu_aia, x_grid, y_grid, qs_mask)
-                        AIA_DATA[k]['Q'][0].append(m); AIA_DATA[k]['Q'][1].append(v)
-                        AIA_DATA[k]['Q'][2].append(x); AIA_DATA[k]['Q'][3].append(y)
+                data_nospot = data_nospot_qs.copy(); data_nospot[spot_mask] = np.nan
+                blurred = cv2.GaussianBlur(np.nan_to_num(data_nospot), (CONFIG["BLUR_SIGMA"], CONFIG["BLUR_SIGMA"]), 0)
+                candidates = (blurred > qs_med * (1.0 + CONFIG["PLAGE_EXCESS_PCT"]/100.0)).astype(np.uint8)
+                n_lbl, labels, stats, _ = cv2.connectedComponentsWithStats(candidates, connectivity=8)
+                plage_mask = np.zeros_like(crop_aia, dtype=bool)
+                for l in range(1, n_lbl):
+                    if stats[l, cv2.CC_STAT_AREA] >= CONFIG["MIN_PLAGE_AREA"]: plage_mask[labels==l] = True
 
+                net_thresh = qs_med * (1.0 + CONFIG["QUIET_SUN_TOL_PCT"]/100.0)
+                valid_for_net = (~dirty_mask) & np.isfinite(data_nospot) & (~plage_mask) & (~spot_mask)
+                net_mask = (data_nospot > net_thresh) & valid_for_net
+                qs_mask = (crop_aia > 0) & np.isfinite(crop_aia) & (~spot_mask) & (~plage_mask) & (~net_mask) & (~dirty_mask)
+
+                for k in obs_to_run:
+                    f_obs = find_closest_file(hdr_hmi, DIRS[f'fits_{k}'])
+                    if not f_obs: continue
+                    img_obs, _ = read_fits(os.path.join(DIRS[f'fits_{k}'], f_obs))
+                    crop_obs = np.nan_to_num(np.rot90(img_obs[y0:y0+CONFIG["FRAME_SIZE"], x0:x0+CONFIG["FRAME_SIZE"]], 2), nan=0.0)
+
+                    for cat, msk in [('Q', qs_mask), ('Plage', plage_mask), ('Network', net_mask)]:
+                        m, v, x, y = collect_I_mu(crop_obs, mu_aia, x_grid, y_grid, msk)
+                        AIA_DATA[k][cat][0].append(m); AIA_DATA[k][cat][1].append(v)
+                        AIA_DATA[k][cat][2].append(x); AIA_DATA[k][cat][3].append(y)
             except Exception as e: print(f"[ERR-AIA] {fn_hmi}: {e}")
 
-        # --- SAVE RESULTS ---
-        print("   [Saving] Writing text files...")
+        # Save AIA
+        print("   [Saving] Writing AIA text files...")
         for k in obs_to_run:
-            # HMI
-            for cat in ['U', 'P', 'F']:
-                d = HMI_DATA[k][cat]
-                if d[0]:
-                    arr = np.column_stack([np.concatenate(d[0]), np.concatenate(d[1]), np.concatenate(d[2]), np.concatenate(d[3])])
-                    np.savetxt(os.path.join(DIRS[f'res_hmi_{k}'], f'lbd_{cat}_raw.txt'), arr)
-            # AIA
-            for cat in ['Q']: # Add Plage/Network if fully implemented
+            for cat in ['Q', 'Plage', 'Network']:
                 d = AIA_DATA[k][cat]
                 if d[0]:
                     arr = np.column_stack([np.concatenate(d[0]), np.concatenate(d[1]), np.concatenate(d[2]), np.concatenate(d[3])])
