@@ -8,7 +8,7 @@
 
 This framework automatically downloads, aligns, and extracts data for **5 solar observables** (Intensity, Magnetogram, Dopplergram, Line Depth, Line Width) and performs spatially resolved statistical analysis (East vs. West hemisphere asymmetry).
 
-## 🚀 Key Features
+##  Key Features
 
 * **Multi-Observable Pipeline:** Automatically processes SDO/HMI (Intensity, Magnetogram, Doppler) and SDO/AIA (1700 Å) data.
 * **Spatial Asymmetry:** Splits sunspot data into "Leading" (West) and "Following" (East) hemispheres to study rotational effects and physical asymmetries.
@@ -16,7 +16,7 @@ This framework automatically downloads, aligns, and extracts data for **5 solar 
 * **Raw vs. Absolute Physics:** Handles signed values (velocity/magnetic field) correctly, offering both raw (signed) and absolute-magnitude analysis modes.
 * **Interactive & Batch Modes:** Supports step-by-step interactive execution or fully automated batch processing.
 
-## 📦 Installation
+##  Installation
 
 1.  **Clone the repository:**
     ```bash
@@ -32,7 +32,7 @@ This framework automatically downloads, aligns, and extracts data for **5 solar 
     pip install numpy matplotlib scipy astropy sunpy[all] opencv-python reproject
     ```
 
-## ⚙️ Configuration
+##  Configuration
 
 All physics and run parameters are controlled via the `params.txt` file. You must edit this file before running the code to match your target Active Region.
 
@@ -43,7 +43,7 @@ All physics and run parameters are controlled via the `params.txt` file. You mus
 * `CADENCE`: Time step in hours between observations (e.g., `24`).
 * `DAYS`: Duration of the observation window.
 
-## 🛠️ Usage
+##  Usage
 
 The framework is executed via the `run_analysis.py` interface. It supports **4 distinct modes of operation** to suit different research needs.
 
@@ -72,7 +72,7 @@ Test a specific date or Active Region without editing the configuration file.
 python3 run_analysis.py --config params.txt --noaa 12673 --days 1
 ```
 
-## 📂 Output Structure
+##  Output Structure
 
 The framework organizes results into a structured directory tree:
 
@@ -83,10 +83,10 @@ The framework organizes results into a structured directory tree:
 | `Results_.../` | Extracted numerical data (text files containing $\mu, I, x, y$). |
 | `Post_CLV_candles/` | Final "Candle" plots (PNG). |
 
-## 📜 Citation
+##  Citation
 
 needs to be added 
 
-## 📝 License
+##  License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
